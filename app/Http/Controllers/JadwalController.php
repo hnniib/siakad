@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Auth;
 
 class JadwalController extends Controller
 {
-    /** Semua role: lihat jadwal kuliah & ujian */
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -18,14 +17,28 @@ class JadwalController extends Controller
         $baseQuery = Jadwal::with('mataKuliah.dosen.user');
 
         if ($user->isMahasiswa()) {
-            $mataKuliahIds = $user->mahasiswa->krs()->where('status', 'disetujui')->pluck('mata_kuliah_id');
+            if (! $user->mahasiswa) {
+                abort(403, 'Data mahasiswa tidak ditemukan.');
+            }
+
+            $mataKuliahIds = $user->mahasiswa
+                ->krs()
+                ->where('status', 'disetujui')
+                ->pluck('mata_kuliah_id');
+
             $baseQuery->whereIn('mata_kuliah_id', $mataKuliahIds);
         } elseif ($user->isDosen()) {
-            $mataKuliahIds = $user->dosen->mataKuliah()->pluck('id');
+            if (! $user->dosen) {
+                abort(403, 'Data dosen tidak ditemukan.');
+            }
+
+            $mataKuliahIds = $user->dosen
+                ->mataKuliah()
+                ->pluck('id');
+
             $baseQuery->whereIn('mata_kuliah_id', $mataKuliahIds);
         }
 
-        // Jadwal kuliah: berpola mingguan, dikelompokkan per hari
         $jadwalKuliah = (clone $baseQuery)
             ->where('jenis', 'kuliah')
             ->orderByRaw("FIELD(hari,'Senin','Selasa','Rabu','Kamis','Jumat','Sabtu')")
@@ -33,7 +46,6 @@ class JadwalController extends Controller
             ->get()
             ->groupBy('hari');
 
-        // Jadwal UTS: berpola tanggal kalender asli, dikelompokkan per tanggal
         $jadwalUTS = (clone $baseQuery)
             ->where('jenis', 'ujian_uts')
             ->orderBy('tanggal')
@@ -41,7 +53,6 @@ class JadwalController extends Controller
             ->get()
             ->groupBy(fn ($j) => optional($j->tanggal)->format('Y-m-d'));
 
-        // Jadwal UAS: berpola tanggal kalender asli, dikelompokkan per tanggal
         $jadwalUAS = (clone $baseQuery)
             ->where('jenis', 'ujian_uas')
             ->orderBy('tanggal')
@@ -54,10 +65,6 @@ class JadwalController extends Controller
         return view($view, compact('jadwalKuliah', 'jadwalUTS', 'jadwalUAS'));
     }
 
-    /**
-     * Jalankan SISTEM CERDAS penjadwalan otomatis (CSP + backtracking).
-     * Dibatasi untuk dosen/admin.
-     */
     public function generate(Request $request, JadwalOtomatisService $service)
     {
         abort_unless(Auth::user()->isDosen() || Auth::user()->isAdmin(), 403);
@@ -77,11 +84,6 @@ class JadwalController extends Controller
         return back()->with('hasil_generate', $hasil);
     }
 
-    /**
-     * Hapus jadwal hasil generate otomatis untuk semester & jenis tertentu.
-     * Tidak menyentuh jadwal yang dibuat manual (digenerate_otomatis = false).
-     * Dibatasi untuk dosen/admin.
-     */
     public function hapus(Request $request)
     {
         abort_unless(Auth::user()->isDosen() || Auth::user()->isAdmin(), 403);

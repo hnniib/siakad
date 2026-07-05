@@ -64,20 +64,26 @@ class KrsController extends Controller
     }
 
     /** Dosen: lihat semua pengajuan KRS mahasiswa untuk mata kuliah yang diampu */
+    
     public function indexForDosen()
-    {
-        $dosen = Auth::user()->dosen;
-        $mataKuliahIds = $dosen->mataKuliah()->pluck('id');
+{
+    $user = Auth::user();
 
-        $krsList = Krs::whereIn('mata_kuliah_id', $mataKuliahIds)
-            ->with(['mahasiswa.user', 'mataKuliah'])
-            ->latest()
-            ->get()
-            ->groupBy(fn ($k) => $k->mataKuliah->nama);
-
-        return view('dosen.krs', compact('krsList'));
+    if (! $user->dosen) {
+        abort(403, 'Data dosen tidak ditemukan.');
     }
 
+    $dosen = $user->dosen;
+    $mataKuliahIds = $dosen->mataKuliah()->pluck('id');
+
+    $krsList = Krs::whereIn('mata_kuliah_id', $mataKuliahIds)
+        ->with(['mahasiswa.user', 'mataKuliah'])
+        ->latest()
+        ->get()
+        ->groupBy(fn ($k) => $k->mataKuliah->nama);
+
+    return view('dosen.krs', compact('krsList'));
+}
     /** Dosen: setujui/tolak KRS mahasiswa untuk mata kuliah yang diampu */
     public function updateStatus(Request $request, Krs $krs)
     {

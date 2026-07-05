@@ -6,16 +6,21 @@ use Illuminate\Support\Facades\Auth;
 
 class DashboardController extends Controller
 {
-    /**
-     * Satu route /dashboard, tapi menampilkan view yang BERBEDA
-     * tergantung role user yang sedang login (mahasiswa vs dosen).
-     */
     public function index()
     {
         $user = Auth::user();
 
         if ($user->isMahasiswa()) {
             $mahasiswa = $user->mahasiswa;
+
+            if (! $mahasiswa) {
+                return view('mahasiswa.dashboard', [
+                    'mahasiswa' => null,
+                    'krsAktif' => collect(),
+                    'ipk' => 0,
+                ]);
+            }
+
             $krsAktif = $mahasiswa->krs()->with('mataKuliah')->latest()->take(5)->get();
 
             return view('mahasiswa.dashboard', [
@@ -27,6 +32,17 @@ class DashboardController extends Controller
 
         if ($user->isDosen()) {
             $dosen = $user->dosen;
+
+            if (! $dosen) {
+                return view('dosen.dashboard', [
+                    'dosen' => (object)[
+                        'nidn' => '-',
+                        'bidang_keahlian' => 'Data dosen belum terhubung',
+                    ],
+                    'mataKuliah' => collect(),
+                ]);
+            }
+
             $mataKuliah = $dosen->mataKuliah()->withCount('krs')->get();
 
             return view('dosen.dashboard', [
@@ -35,7 +51,10 @@ class DashboardController extends Controller
             ]);
         }
 
-        // fallback admin / role lain
-        return view('mahasiswa.dashboard', ['mahasiswa' => null, 'krsAktif' => collect(), 'ipk' => 0]);
+        return view('mahasiswa.dashboard', [
+            'mahasiswa' => null,
+            'krsAktif' => collect(),
+            'ipk' => 0
+        ]);
     }
 }
